@@ -1,0 +1,7 @@
+export { authController } from './authController.js'
+export { userController } from './userController.js'
+export { videoController } from './videoController.js'
+export { commentController } from './commentController.js'
+export { interactionController } from './interactionController.js'
+export { danmakuController } from './danmakuController.js'
+export { notificationController } from './notificationController.js'
