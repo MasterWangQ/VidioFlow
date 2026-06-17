@@ -2,14 +2,31 @@
   <div class="admin">
     <div class="container">
       <div class="page-header">
-        <h1>视频审核</h1>
+        <h1>管理后台</h1>
+        <div class="admin-tabs">
+          <button 
+            @click="currentTab = 'videos'; fetchPendingVideos()" 
+            :class="{ active: currentTab === 'videos' }"
+            class="tab-btn"
+          >
+            视频审核
+          </button>
+          <button 
+            @click="currentTab = 'reports'; fetchReports()" 
+            :class="{ active: currentTab === 'reports' }"
+            class="tab-btn"
+          >
+            举报审核
+          </button>
+        </div>
       </div>
 
-      <div v-if="loading" class="loading">加载中...</div>
-      <div v-else-if="pendingVideos.length === 0" class="empty">
-        <p>暂无待审核视频</p>
-      </div>
-      <div v-else class="video-grid">
+      <div v-if="currentTab === 'videos'">
+        <div v-if="loading" class="loading">加载中...</div>
+        <div v-else-if="pendingVideos.length === 0" class="empty">
+          <p>暂无待审核视频</p>
+        </div>
+        <div v-else class="video-grid">
         <div v-for="video in pendingVideos" :key="video.id" class="video-card">
           <div class="video-cover-wrapper" @click="openVideoModal(video)">
             <img :src="video.cover || '/default-cover.png'" :alt="video.title" class="video-cover-img" />
@@ -71,6 +88,79 @@
         >
           末页
         </button>
+        </div>
+      </div>
+
+      <div v-if="currentTab === 'reports'">
+        <div v-if="reportLoading" class="loading">加载中...</div>
+        <div v-else-if="reports.length === 0" class="empty">
+          <p>暂无举报</p>
+        </div>
+        <div v-else class="report-list">
+          <div v-for="report in reports" :key="report.id" class="report-card">
+            <div class="report-header">
+              <span class="report-type">{{ report.targetType === 'video' ? '视频举报' : '评论举报' }}</span>
+              <span :class="['report-status', report.status]">
+                {{ report.status === 'pending' ? '待处理' : report.status === 'approved' ? '已通过' : '已驳回' }}
+              </span>
+            </div>
+            <div class="report-content">
+              <p class="report-reason"><strong>举报原因：</strong>{{ report.reason }}</p>
+              <div class="report-info">
+                <span><strong>举报人：</strong>{{ report.reporter?.nickname || report.reporter?.username }}</span>
+                <span><strong>被举报人：</strong>{{ report.targetUser?.nickname || report.targetUser?.username }}</span>
+              </div>
+              <div v-if="report.targetInfo" class="target-info">
+                <p v-if="report.targetType === 'video'" class="target-title">
+                  <strong>目标视频：</strong>{{ report.targetInfo.title }}
+                </p>
+                <p v-else class="target-content">
+                  <strong>目标评论：</strong>{{ report.targetInfo.content }}
+                </p>
+              </div>
+              <p class="report-time">举报时间：{{ formatTime(report.createdAt) }}</p>
+            </div>
+            <div v-if="report.status === 'pending'" class="report-actions">
+              <button @click="handleReport(report.id, 'approved')" class="btn btn-primary btn-sm">
+                确认违规
+              </button>
+              <button @click="handleReport(report.id, 'rejected')" class="btn btn-secondary btn-sm">
+                驳回举报
+              </button>
+            </div>
+          </div>
+        </div>
+        <div v-if="reportTotal > reportLimit" class="pagination">
+          <button
+            @click="reportPage = 1; fetchReports()"
+            :disabled="reportPage <= 1"
+            class="btn btn-secondary"
+          >
+            首页
+          </button>
+          <button
+            @click="reportPage--; fetchReports()"
+            :disabled="reportPage <= 1"
+            class="btn btn-secondary"
+          >
+            上一页
+          </button>
+          <span class="page-info">第 {{ reportPage }} / {{ reportTotalPages }} 页</span>
+          <button
+            @click="reportPage++; fetchReports()"
+            :disabled="reportPage >= reportTotalPages"
+            class="btn btn-secondary"
+          >
+            下一页
+          </button>
+          <button
+            @click="reportPage = reportTotalPages; fetchReports()"
+            :disabled="reportPage >= reportTotalPages"
+            class="btn btn-secondary"
+          >
+            末页
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -126,14 +216,22 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { videoApi } from '../api'
+import { videoApi, reportApi } from '../api'
 import type { Video } from '../types'
+
+const currentTab = ref<'videos' | 'reports'>('videos')
 
 const pendingVideos = ref<Video[]>([])
 const loading = ref(false)
 const page = ref(1)
 const limit = 20
 const total = ref(0)
+
+const reports = ref<any[]>([])
+const reportLoading = ref(false)
+const reportPage = ref(1)
+const reportLimit = 20
+const reportTotal = ref(0)
 const showVideoModal = ref(false)
 const currentVideo = ref<Video | null>(null)
 const videoRef = ref<HTMLVideoElement | null>(null)
@@ -151,6 +249,7 @@ const rejectReasons = [
 ]
 
 const totalPages = computed(() => Math.ceil(total.value / limit))
+const reportTotalPages = computed(() => Math.ceil(reportTotal.value / reportLimit))
 
 const fetchPendingVideos = async () => {
   loading.value = true
@@ -240,6 +339,29 @@ const formatTime = (dateStr: string) => {
   return date.toLocaleDateString('zh-CN')
 }
 
+const fetchReports = async () => {
+  reportLoading.value = true
+  try {
+    const res = await reportApi.getReports(reportPage.value, reportLimit)
+    const data = res.data
+    reports.value = data?.items || []
+    reportTotal.value = data?.total || 0
+  } catch (err) {
+    console.error('获取举报失败', err)
+  } finally {
+    reportLoading.value = false
+  }
+}
+
+const handleReport = async (id: number, status: 'approved' | 'rejected') => {
+  try {
+    await reportApi.handleReport(id, status)
+    reports.value = reports.value.filter(r => r.id !== id)
+  } catch (err) {
+    console.error('处理举报失败', err)
+  }
+}
+
 onMounted(() => {
   fetchPendingVideos()
 })
@@ -249,6 +371,35 @@ onMounted(() => {
 
 .page-header {
   margin-bottom: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tab-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.tab-btn.active {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
 }
 
 .loading, .empty {
@@ -536,5 +687,105 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 0.75rem;
   margin-top: 1rem;
+}
+
+.report-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.report-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #eee;
+}
+
+.report-type {
+  font-weight: 600;
+  color: #333;
+}
+
+.report-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.report-status.pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.report-status.approved {
+  background: #d4edda;
+  color: #155724;
+}
+
+.report-status.rejected {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.report-content {
+  padding: 1rem;
+}
+
+.report-reason {
+  margin-bottom: 0.75rem;
+  color: #333;
+}
+
+.report-info {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.target-info {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.target-title {
+  margin: 0;
+  color: #333;
+  font-size: 0.875rem;
+}
+
+.target-content {
+  margin: 0;
+  color: #333;
+  font-size: 0.875rem;
+  word-break: break-all;
+}
+
+.report-time {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #999;
+}
+
+.report-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-top: 1px solid #eee;
+  background: #f8f9fa;
 }
 </style>

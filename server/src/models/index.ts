@@ -8,6 +8,7 @@ import { Category } from './category.js'
 import { WatchHistory } from './WatchHistory.js'
 import { Danmaku } from './Danmaku.js'
 import { Notification } from './Notification.js'
+import { Report } from './Report.js'
 
 User.hasMany(Video, { foreignKey: 'userId', as: 'videos' })
 Video.belongsTo(User, { foreignKey: 'userId', as: 'user' })
@@ -54,4 +55,11 @@ Danmaku.belongsTo(Video, { foreignKey: 'videoId', as: 'video' })
 User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' })
 Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' })
 
-export { User, Video, Comment, Like, Favorite, Subscription, Category, WatchHistory, Danmaku, Notification }
+// 举报关联
+User.hasMany(Report, { foreignKey: 'reporterId', as: 'reports' })
+Report.belongsTo(User, { foreignKey: 'reporterId', as: 'reporter' })
+
+User.hasMany(Report, { foreignKey: 'targetUserId', as: 'reported' })
+Report.belongsTo(User, { foreignKey: 'targetUserId', as: 'targetUser' })
+
+export { User, Video, Comment, Like, Favorite, Subscription, Category, WatchHistory, Danmaku, Notification, Report }

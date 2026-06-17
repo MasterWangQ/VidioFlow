@@ -35,9 +35,11 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { useNotificationStore } from '../stores/notification'
 
 const router = useRouter()
 const userStore = useUserStore()
+const notificationStore = useNotificationStore()
 
 const form = reactive({
   username: '',
@@ -63,6 +65,11 @@ const handleSubmit = async () => {
 
   try {
     await userStore.register(form.username, form.email, form.password)
+    
+    notificationStore.reset()
+    await notificationStore.fetchUnreadCount()
+    await notificationStore.fetchNotifications()
+    
     router.push('/')
   } catch (e: any) {
     error.value = e.message || '注册失败'

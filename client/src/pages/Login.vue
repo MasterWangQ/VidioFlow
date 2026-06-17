@@ -27,9 +27,11 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { useNotificationStore } from '../stores/notification'
 
 const router = useRouter()
 const userStore = useUserStore()
+const notificationStore = useNotificationStore()
 
 const form = reactive({
   email: '',
@@ -44,6 +46,11 @@ const handleSubmit = async () => {
     const res = await userStore.login(form.email, form.password)
     const userRole = (res.data?.user as any)?.role || 'user'
     localStorage.setItem('userRole', userRole)
+    
+    notificationStore.reset()
+    await notificationStore.fetchUnreadCount()
+    await notificationStore.fetchNotifications()
+    
     if (userRole === 'admin') {
       router.push('/admin')
     } else {

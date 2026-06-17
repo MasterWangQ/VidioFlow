@@ -134,4 +134,15 @@ export const notificationApi = {
   deleteNotification: (id: number) => api.delete<any, ApiResponse<null>>(`/notifications/${id}`)
 }
 
+export const reportApi = {
+  createReport: (targetId: number, targetType: 'video' | 'comment', reason: string) =>
+    api.post<any, ApiResponse<{ id: number }>>('/reports', { targetId, targetType, reason }),
+  getReports: (page = 1, limit = 20, status?: string) =>
+    api.get<any, ApiResponse<PaginatedResponse<any>>>('/reports', { params: { page, limit, status } }),
+  handleReport: (id: number, status: 'approved' | 'rejected') =>
+    api.put<any, ApiResponse<any>>(`/reports/${id}/handle`, { status }),
+  getMyReports: (page = 1, limit = 20) =>
+    api.get<any, ApiResponse<PaginatedResponse<any>>>('/reports/my', { params: { page, limit } })
+}
+
 export default api

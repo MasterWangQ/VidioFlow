@@ -48,6 +48,48 @@
               <span class="nav-icon">📜</span>
               <span>历史</span>
             </router-link>
+            <div class="notification-wrapper" v-if="$route.path !== '/admin'">
+              <button class="notification-btn" @click="toggleNotificationDropdown">
+                <span class="notification-icon">🔔</span>
+                <span v-if="notificationStore.unreadCount > 0" class="notification-badge">
+                  {{ notificationStore.unreadCount }}
+                </span>
+              </button>
+              <div v-if="showNotificationDropdown" class="notification-dropdown">
+                <div class="dropdown-header">
+                  <span class="dropdown-title">通知</span>
+                  <router-link to="/notifications" class="view-all">查看全部</router-link>
+                </div>
+                <div class="dropdown-content">
+                  <div v-if="notificationStore.notifications.length === 0" class="no-notifications">
+                    <span>暂无通知</span>
+                  </div>
+                  <div 
+                    v-for="notification in notificationStore.notifications.slice(0, 5)" 
+                    :key="notification.id"
+                    class="dropdown-item"
+                    :class="{ unread: !notification.read }"
+                    @click="handleNotificationClick(notification)"
+                  >
+                    <span class="item-icon">
+                      <span v-if="notification.type === 'like'">👍</span>
+                      <span v-else-if="notification.type === 'comment'">💬</span>
+                      <span v-else-if="notification.type === 'subscribe'">👤</span>
+                      <span v-else-if="notification.type === 'upload'">📹</span>
+                      <span v-else-if="notification.type === 'approval'">✅</span>
+                      <span v-else>🔔</span>
+                    </span>
+                    <div class="item-content">
+                      <p class="item-text">{{ notification.content }}</p>
+                      <span class="item-time">{{ formatTime(notification.createdAt) }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="notificationStore.unreadCount > 0" class="dropdown-footer">
+                  <button @click="handleMarkAllRead" class="mark-all-btn">全部已读</button>
+                </div>
+              </div>
+            </div>
             <router-link :to="`/user/${userStore.user.id}`" class="user-avatar" v-if="$route.path !== '/admin'">
               <div class="avatar-wrapper">
                 <span class="avatar-text">{{ userStore.user.nickname?.charAt(0) || userStore.user.username?.charAt(0) || 'U' }}</span>
@@ -105,19 +147,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useUserStore } from './stores/user'
+import { useNotificationStore } from './stores/notification'
 import { useRouter } from 'vue-router'
 
 const userStore = useUserStore()
+const notificationStore = useNotificationStore()
 const router = useRouter()
 const searchQuery = ref('')
+const showNotificationDropdown = ref(false)
 
-onMounted(() => {
-  userStore.fetchCurrentUser()
+onMounted(async () => {
+  await userStore.fetchCurrentUser()
+  if (userStore.isLoggedIn) {
+    notificationStore.fetchUnreadCount()
+    notificationStore.fetchNotifications()
+  }
+  document.addEventListener('click', handleDocumentClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocumentClick)
 })
 
 const handleLogout = () => {
+  notificationStore.reset()
   userStore.logout()
   router.push('/')
 }
@@ -126,6 +181,46 @@ const handleSearch = () => {
   if (searchQuery.value.trim()) {
     router.push({ path: '/videos', query: { search: searchQuery.value } })
   }
+}
+
+const toggleNotificationDropdown = (event: Event) => {
+  event.stopPropagation()
+  showNotificationDropdown.value = !showNotificationDropdown.value
+}
+
+const handleDocumentClick = () => {
+  showNotificationDropdown.value = false
+}
+
+const handleNotificationClick = (notification: any) => {
+  showNotificationDropdown.value = false
+  if (!notification.read) {
+    notificationStore.markAsRead(notification.id)
+  }
+  if (notification.link) {
+    router.push(notification.link)
+  }
+}
+
+const handleMarkAllRead = () => {
+  notificationStore.markAsRead()
+}
+
+const formatTime = (dateStr: string) => {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes}分钟前`
+  if (hours < 24) return `${hours}小时前`
+  if (days < 7) return `${days}天前`
+  
+  return date.toLocaleDateString('zh-CN')
 }
 </script>
 
@@ -442,5 +537,162 @@ const handleSearch = () => {
   margin-top: 1.5rem;
   border-top: 1px solid #2d2d2d;
   font-size: 0.8125rem;
+}
+
+.notification-wrapper {
+  position: relative;
+}
+
+.notification-btn {
+  position: relative;
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  font-size: 1.25rem;
+}
+
+.notification-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.notification-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  width: 360px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dropdown-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.view-all {
+  font-size: 0.8125rem;
+  color: #007bff;
+  text-decoration: none;
+}
+
+.view-all:hover {
+  text-decoration: underline;
+}
+
+.dropdown-content {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.no-notifications {
+  padding: 2rem;
+  text-align: center;
+  color: #999;
+  font-size: 0.875rem;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border-left: 3px solid transparent;
+}
+
+.dropdown-item:hover {
+  background: #f5f5f5;
+}
+
+.dropdown-item.unread {
+  background: #f8fafc;
+  border-left-color: #007bff;
+}
+
+.item-icon {
+  font-size: 1.25rem;
+  margin-right: 0.75rem;
+  flex-shrink: 0;
+}
+
+.item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-text {
+  font-size: 0.8125rem;
+  color: #333;
+  margin: 0 0 4px 0;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-time {
+  font-size: 0.75rem;
+  color: #999;
+}
+
+.dropdown-footer {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #f0f0f0;
+  text-align: center;
+}
+
+.mark-all-btn {
+  padding: 0.5rem 1.25rem;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.mark-all-btn:hover {
+  background: #0056b3;
 }
 </style>

@@ -7,7 +7,7 @@ export interface AuthRequest extends Request {
   userId?: string
 }
 
-export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -20,6 +20,12 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
     const decoded = jwt.verify(token, config.jwtSecret as string) as { userId: string; role?: string }
     req.userId = decoded.userId
     ;(req as any).isAdmin = decoded.role === 'admin'
+    
+    const user = await User.findByPk(decoded.userId)
+    if (user) {
+      ;(req as any).user = user.toJSON()
+    }
+    
     next()
   } catch {
     return res.status(401).json({ code: 401, message: 'token无效' })

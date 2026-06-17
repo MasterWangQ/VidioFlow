@@ -253,13 +253,13 @@ const goToTag = (tagName: string) => {
 }
 
 const shuffleVideos = () => {
-  const allVideos = videoStore.videos.slice(5)
+  const allVideos = videoStore.videos
   if (allVideos.length <= 6) {
     shuffledIndices.value = []
     return
   }
   
-  const indices = Array.from({ length: allVideos.length }, (_, i) => i + 5)
+  const indices = Array.from({ length: allVideos.length }, (_, i) => i)
   for (let i = indices.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [indices[i], indices[j]] = [indices[j], indices[i]]

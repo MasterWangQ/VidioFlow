@@ -9,6 +9,7 @@ import categoryRoutes from './category.js'
 import watchHistoryRoutes from './watchHistory.js'
 import danmakuRoutes from './danmaku.js'
 import notificationRoutes from './notifications.js'
+import reportRoutes from './reports.js'
 
 const router = Router()
 
@@ -22,5 +23,6 @@ router.use('/categories', categoryRoutes)
 router.use('/watch-history', watchHistoryRoutes)
 router.use('/', danmakuRoutes)
 router.use('/', notificationRoutes)
+router.use('/', reportRoutes)
 
 export default router

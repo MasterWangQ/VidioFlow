@@ -29,6 +29,9 @@
             <button @click="handleSubscribe" :class="{ active: isSubscribed }">
               {{ isSubscribed ? '已订阅' : '订阅' }}
             </button>
+            <button @click="handleReportVideo" class="report-btn">
+              举报
+            </button>
           </div>
           <div class="author">
             <router-link :to="`/user/${video.user?.id}`">
@@ -61,6 +64,9 @@
                 <p class="comment-text">{{ comment.content }}</p>
                 <p class="comment-time">{{ formatDate(comment.createdAt) }}</p>
               </div>
+              <button @click="handleReportComment(comment.id)" class="comment-report-btn">
+                举报
+              </button>
             </div>
           </div>
           <div v-if="totalComments > limit" class="pagination">
@@ -76,6 +82,13 @@
       </div>
     </div>
   </div>
+  
+  <ReportModal 
+    :visible="showReportModal" 
+    :target-id="reportTargetId" 
+    :target-type="reportTargetType"
+    @close="handleReportClose"
+  />
 </template>
 
 <script setup lang="ts">
@@ -85,6 +98,7 @@ import { useVideoStore } from '../stores/video'
 import { useUserStore } from '../stores/user'
 import { commentApi, interactionApi, watchHistoryApi } from '../api'
 import type { Comment } from '../types'
+import ReportModal from '../components/ReportModal.vue'
 
 const route = useRoute()
 const videoStore = useVideoStore()
@@ -105,6 +119,26 @@ let progressTimer: number | null = null
 const totalPages = computed(() => Math.ceil(totalComments.value / limit))
 
 const video = computed(() => videoStore.currentVideo!)
+
+const showReportModal = ref(false)
+const reportTargetId = ref(0)
+const reportTargetType = ref<'video' | 'comment'>('video')
+
+const handleReportVideo = () => {
+  reportTargetId.value = parseInt(route.params.id as string)
+  reportTargetType.value = 'video'
+  showReportModal.value = true
+}
+
+const handleReportComment = (commentId: number) => {
+  reportTargetId.value = commentId
+  reportTargetType.value = 'comment'
+  showReportModal.value = true
+}
+
+const handleReportClose = () => {
+  showReportModal.value = false
+}
 
 onMounted(async () => {
   const id = route.params.id as string
@@ -291,6 +325,20 @@ const formatDate = (date: string) => {
   border-color: var(--primary-color);
 }
 
+.report-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ff6b6b;
+  background: #fff;
+  color: #ff6b6b;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.report-btn:hover {
+  background: #fff5f5;
+}
+
 .author {
   margin-bottom: 1rem;
 }
@@ -368,6 +416,21 @@ const formatDate = (date: string) => {
 .comment-item {
   display: flex;
   gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.comment-report-btn {
+  padding: 0.25rem 0.5rem;
+  border: none;
+  background: none;
+  color: #999;
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.comment-report-btn:hover {
+  color: #ff6b6b;
 }
 
 .comment-content {

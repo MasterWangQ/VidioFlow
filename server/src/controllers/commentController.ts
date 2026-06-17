@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { Comment, User, Video } from '../models/index.js'
+import { notificationController } from './notificationController.js'
 
 export const commentController = {
   async getComments(req: Request, res: Response) {
@@ -54,6 +55,16 @@ export const commentController = {
     const commentWithUser = await Comment.findByPk(comment.id, {
       include: [{ model: User, as: 'user', attributes: ['id', 'username', 'nickname', 'avatar'] }]
     })
+
+    const video = await Video.findByPk(videoId)
+    if (video && video.userId.toString() !== authReq.userId) {
+      notificationController.createNotification(
+        video.userId,
+        'comment',
+        `用户 ${authReq.user?.nickname || authReq.user?.username} 评论了你的视频`,
+        `/video/${videoId}`
+      ).catch(console.error)
+    }
 
     res.json({ code: 0, message: '评论成功', data: commentWithUser })
   },

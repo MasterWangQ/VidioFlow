@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
-import { Video, User } from '../models/index.js'
+import { Video, User, Subscription } from '../models/index.js'
 import { Op, Sequelize } from 'sequelize'
+import { notificationController } from './notificationController.js'
 
 export const videoController = {
   async getTopVideos(req: Request, res: Response) {
@@ -226,6 +227,23 @@ export const videoController = {
     }
 
     await video.update({ status: 1 })
+
+    notificationController.createNotification(
+      video.userId,
+      'approval',
+      '你的视频已通过审核',
+      `/video/${id}`
+    ).catch(console.error)
+
+    const subscribers = await Subscription.findAll({ where: { creatorId: video.userId } })
+    subscribers.forEach(sub => {
+      notificationController.createNotification(
+        sub.subscriberId,
+        'upload',
+        '你关注的UP主发布了新视频',
+        `/video/${id}`
+      ).catch(console.error)
+    })
 
     const updatedVideo = await Video.findByPk(id, {
       include: [{ model: User, as: 'user', attributes: ['id', 'username', 'nickname', 'avatar'] }]

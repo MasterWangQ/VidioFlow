@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { Like, Favorite, Subscription, Video, User } from '../models/index.js'
+import { notificationController } from './notificationController.js'
 
 export const interactionController = {
   async likeVideo(req: Request, res: Response) {
@@ -15,6 +16,16 @@ export const interactionController = {
       await Like.create({ userId: authReq.userId, videoId: id })
 
       await Video.increment('likeCount', { where: { id } })
+
+      const video = await Video.findByPk(id)
+      if (video && video.userId.toString() !== authReq.userId) {
+        notificationController.createNotification(
+          video.userId,
+          'like',
+          `用户 ${authReq.user?.nickname || authReq.user?.username} 点赞了你的视频`,
+          `/video/${id}`
+        ).catch(console.error)
+      }
 
       res.json({ code: 0, message: '点赞成功', data: null })
     } catch (error) {
@@ -97,6 +108,13 @@ export const interactionController = {
       }
 
       await Subscription.create({ subscriberId: authReq.userId, creatorId: id })
+
+      notificationController.createNotification(
+        parseInt(id),
+        'subscribe',
+        `用户 ${authReq.user?.nickname || authReq.user?.username} 关注了你`,
+        `/user/${authReq.userId}`
+      ).catch(console.error)
 
       res.json({ code: 0, message: '订阅成功', data: null })
     } catch (error) {
